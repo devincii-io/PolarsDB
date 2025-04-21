@@ -3,7 +3,8 @@ from setuptools import setup, find_packages
 setup(
     name="PolarsDB",
     version="0.1.0",
-    packages=find_packages(),
+    packages=[""],
+    py_modules=["PolarsDB"],
     install_requires=[
         "polars>=0.19.12",
     ],
