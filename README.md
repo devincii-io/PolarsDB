@@ -15,16 +15,21 @@ A lightweight CSV-based database system built on Polars - optimized for analytic
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/yourusername/PolarsDB.git
+git clone https://github.com/devincii-io/PolarsDB.git
 cd PolarsDB
-pip install -r requirements.txt
+pip install -e .
+```
+
+Or install directly from GitHub:
+
+```bash
+pip install git+https://github.com/devincii-io/PolarsDB.git
 ```
 
 ## Quick Start
 
 ```python
-from src.config import DBConfig
-from src.client import DBClient
+from PolarsDB import DBConfig, DBClient
 import polars as pl
 
 # Create a configuration
