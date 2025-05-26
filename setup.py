@@ -3,12 +3,11 @@ from setuptools import setup, find_packages
 setup(
     name="PolarsDB",
     version="0.1.0",
-    packages=[""],
-    py_modules=["PolarsDB"],
+    packages=find_packages(include=['PolarsDB', 'PolarsDB.*']),
     install_requires=[
         "polars>=0.19.12",
     ],
-    author="devincii-io",
+    author="Devin Isaac Worbis",
     author_email="",
     description="A lightweight CSV-based database system built on Polars",
     long_description=open("README.md").read(),
@@ -19,5 +18,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
 ) 

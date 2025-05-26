@@ -5,9 +5,10 @@ A lightweight CSV-based database system built on Polars - optimized for analytic
 ## Features
 
 - **Simple CSV-based Storage**: Uses CSV files for storing table data, making it transparent and accessible
-- **UPSERT Support**: Full support for updating existing records and inserting new ones
+- **UPSERT Support**: Full support for updating existing records and inserting new ones with immediate feedback
 - **Powerful Query Interface**: Query data using the full power of Polars expressions
 - **Operation History**: Comprehensive history tracking of all database operations
+- **Immediate Feedback**: Insert and delete operations return detailed operation records with statistics
 - **Flexible Configuration**: Simple configuration system for managing tables and settings
 
 ## Installation
@@ -54,9 +55,25 @@ customer_data = {
     "total_spent": [150.50, 320.75, 95.20]
 }
 
-# Insert data
+# Insert data (returns operation record with immediate feedback)
 df = pl.DataFrame(customer_data)
-client.insert_data("customers", df)
+result = client.insert_data("customers", df)
+
+# Check operation results
+print(f"✅ {result['summary']}")
+print(f"📊 Inserted {result['statistics']['rows_newly_inserted']} rows")
+
+# Insert some updates
+update_data = pl.DataFrame({
+    "customer_id": ["CUST001", "CUST004"],  # CUST001 exists, CUST004 is new
+    "name": ["Alice Smith", "Diana"],
+    "email": ["alice.smith@example.com", "diana@example.com"],
+    "total_spent": [200.00, 75.30]
+})
+
+result = client.insert_data("customers", update_data)
+print(f"✅ {result['summary']}")
+print(f"📊 New: {result['statistics']['rows_newly_inserted']}, Updated: {result['statistics']['rows_updated']}")
 
 # Query data
 high_value_customers = client.query("customers.filter(pl.col('total_spent') > 100)")
@@ -70,7 +87,16 @@ print(high_value_customers)
 ```python
 # Insert new data (will update existing records based on deduplication columns)
 df = pl.DataFrame(data)
-client.insert_data("table_name", df)
+result = client.insert_data("table_name", df)
+
+# Get immediate feedback about the operation
+print(f"Operation completed: {result['summary']}")
+print(f"Statistics: {result['statistics']}")
+
+# Access specific metrics
+rows_added = result['statistics']['rows_newly_inserted']
+duplicates = result['statistics']['duplicates_found']
+table_size = result['statistics']['new_table_size']
 ```
 
 ### Query Data
@@ -95,14 +121,43 @@ result = client.query(
 ### Delete Data
 
 ```python
-# Delete by date range
-client.delete_data_by_date("table_name", "date_column", start_date, end_date)
+# Delete by date range (returns operation record)
+result = client.delete_data_by_date("table_name", "date_column", start_date, end_date)
+print(f"Deleted {result['statistics']['rows_deleted']} rows")
 
-# Delete by key
-client.delete_data_by_key("table_name", "key_column", "key_value")
+# Delete by key (returns operation record)
+result = client.delete_data_by_key("table_name", "key_column", "key_value")
+print(f"Operation: {result['summary']}")
+print(f"Rows deleted: {result['statistics']['rows_deleted']}")
+print(f"New table size: {result['statistics']['new_table_size']}")
 ```
 
-### Operation History
+### Operation Records & History
+
+All data modification operations (`insert_data`, `delete_data_by_date`, `delete_data_by_key`) return detailed operation records:
+
+```python
+# Insert data and get immediate feedback
+result = client.insert_data("customers", df)
+
+# Operation record contains:
+print(result['operation'])      # "insert_data"
+print(result['timestamp'])      # When it happened
+print(result['summary'])        # Human-readable summary
+print(result['statistics'])     # Detailed metrics
+print(result['args'])          # Operation arguments
+
+# Available statistics include:
+stats = result['statistics']
+print(f"Input rows: {stats['input_rows']}")
+print(f"New rows inserted: {stats['rows_newly_inserted']}")
+print(f"Duplicates found: {stats['duplicates_found']}")
+print(f"Rows updated: {stats['rows_updated']}")
+print(f"Final table size: {stats['new_table_size']}")
+print(f"Duplication rate: {stats['duplication_rate']}%")
+```
+
+You can also access historical operations:
 
 ```python
 # Get history for a specific table
@@ -110,17 +165,37 @@ history = client.get_operation_history("table_name")
 
 # Get all operation history
 all_history = client.get_all_operation_history()
+
+# Get recent operations
+recent = client.get_recent_operations("table_name", limit=5)
 ```
 
 ## Testing
 
-The repository includes a comprehensive test suite:
+The repository includes a comprehensive test suite using pytest:
 
 ```bash
-python test.py
+# Run all tests
+pytest tests/ -v
+
+# Run only unit tests
+pytest tests/test_*.py -v
+
+# Run only integration tests
+pytest tests/integration/ -v
+
+# Run tests with markers
+pytest -m integration -v
 ```
 
-This will run through basic operations and demonstrates the functionality of the library.
+The test suite covers:
+- Configuration management and validation
+- Data insertion with duplicate detection and immediate feedback
+- Data reading and querying
+- Operation history tracking
+- Error handling and edge cases
+- Complete end-to-end workflows
+- Operation record return values
 
 ## License
 
