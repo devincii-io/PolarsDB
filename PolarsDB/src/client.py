@@ -53,47 +53,59 @@ class DBClient:
     
     def query(self, query_str: str, params: Optional[Dict[str, Any]] = None) -> DataFrame:
         """
-        Execute a query across all tables in the database using Polars expressions
+        Execute a SQL query using Polars SQLContext, loading only referenced tables
         
-        This method provides a simple SQL-like interface to query the database.
-        The query string can reference any table by name and use Polars expressions.
+        This method provides a SQL interface to query the database.
+        Only tables referenced in the SQL query will be loaded into memory.
         
         Parameters:
         -----------
         query_str : str
-            A string containing Polars expressions to execute
-            Example: "customers.filter(pl.col('total_spent') > 1000).join(orders, on='customer_id')"
+            SQL query string to execute (e.g., "SELECT * FROM customers WHERE age > 25")
         params : Dict[str, Any], optional
-            Parameters to substitute in the query
+            Parameters to substitute in the query (for future use)
             
         Returns:
         --------
         DataFrame
-            Result of the query
+            Result of the SQL query
         
         Examples:
         ---------
-        # Simple filter
-        client.query("customers.filter(pl.col('total_spent') > 1000)")
+        # Simple SELECT
+        client.query("SELECT * FROM customers WHERE age > 25")
         
-        # Join tables
-        client.query("customers.join(orders, on='customer_id').select(['name', 'order_id'])")
+        # JOIN multiple tables
+        client.query('''
+            SELECT c.name, o.order_id, o.total
+            FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            WHERE c.age > 30
+        ''')
         
-        # Parameterized query
-        client.query("customers.filter(pl.col('total_spent') > threshold)", {"threshold": 1000})
+        # Common Table Expression (CTE)
+        client.query('''
+            WITH high_value_customers AS (
+                SELECT customer_id, name, total_spent
+                FROM customers 
+                WHERE total_spent > 1000
+            )
+            SELECT * FROM high_value_customers
+            ORDER BY total_spent DESC
+        ''')
         """
         
-        # Validate query
+        # Validate SQL query
         if not self.query_executor.validate_query(query_str):
-            raise ValueError("Query contains potentially dangerous operations")
+            raise ValueError("SQL query contains potentially dangerous operations or syntax errors")
         
         try:
-            # Execute query using the query executor
+            # Execute SQL query using the query executor
             result, execution_time, tables_used = self.query_executor.execute_query(query_str, params)
             
             # Calculate statistics
             namespace = {'pl': __import__('polars')}
-            for table_name in self.config.tables:
+            for table_name in tables_used:
                 try:
                     namespace[table_name] = self.read_table(table_name)
                 except:
@@ -124,7 +136,7 @@ class DBClient:
             return result
             
         except Exception as e:
-            raise ValueError(f"Error executing query: {str(e)}")
+            raise ValueError(f"Error executing SQL query: {str(e)}")
     
     def insert_data(self, table_name: str, df: DataFrame):
         """Insert data into a table, respecting the deduplication columns, updating existing rows and appending new rows"""
@@ -302,4 +314,33 @@ class DBClient:
     def get_dataframe_info(self, df: DataFrame) -> Dict[str, Any]:
         """Get comprehensive information about a dataframe"""
         return self.data_validator.get_dataframe_info(df)
+    
+    def explain_query(self, sql_query: str) -> Dict[str, Any]:
+        """
+        Explain what tables would be loaded for a given SQL query without executing it
+        
+        This is useful for understanding the impact of a query before running it.
+        
+        Parameters:
+        -----------
+        sql_query : str
+            SQL query string to analyze
+            
+        Returns:
+        --------
+        Dict[str, Any]
+            Information about the query plan including tables to be loaded
+        """
+        return self.query_executor.explain_query(sql_query)
+    
+    def show_tables(self) -> DataFrame:
+        """
+        Show all available tables in the database with their basic information
+        
+        Returns:
+        --------
+        DataFrame
+            Information about all tables including existence, row count, columns
+        """
+        return self.query_executor.show_available_tables()
 
